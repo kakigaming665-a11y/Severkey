@@ -1,0 +1,108 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SHOP QUỐC BẢO</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;min-height:100vh;background:#090d18;color:white;
+ font-family:Arial,sans-serif;display:grid;place-items:center;padding:20px
+}
+.card{
+ width:100%;max-width:390px;background:#151c2d;
+ border:1px solid #34415b;border-radius:18px;padding:26px;
+ box-shadow:0 15px 45px #0008
+}
+h1{text-align:center;color:#ff4141;margin:0 0 8px}
+.sub{text-align:center;color:#aab5c9;margin-bottom:25px}
+input,button{
+ width:100%;padding:14px;margin:9px 0;border-radius:9px;
+ border:1px solid #3c4963;font-size:15px
+}
+input{background:#0c1322;color:white}
+button{background:#e52d38;color:white;font-weight:bold;border:0}
+button:active{opacity:.8}
+#message{color:#ffd166;text-align:center;overflow-wrap:anywhere}
+#dashboard{display:none}
+.small{font-size:12px;color:#aab5c9;text-align:center}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>SHOP QUỐC BẢO</h1>
+  <p class="sub">HỆ THỐNG QUẢN LÝ KEY</p>
+
+  <section id="login">
+    <input id="email" type="email" placeholder="Email Admin">
+    <input id="password" type="password" placeholder="Mật khẩu">
+    <button onclick="login()">ĐĂNG NHẬP</button>
+  </section>
+
+  <section id="dashboard">
+    <h2>Đăng nhập thành công</h2>
+    <p id="user"></p>
+    <p id="role"></p>
+    <button onclick="logout()">ĐĂNG XUẤT</button>
+  </section>
+
+  <p id="message"></p>
+  <p class="small">SHOP QUỐC BẢO © 2026</p>
+</div>
+
+<script>
+const SUPABASE_URL = "https://itmbrkqukjcwgdmdozdv.supabase.co";
+const SUPABASE_KEY = "sb_publishable_8s2VZHU86HaF-uZuzDTeeQ_KxUzBXKL";
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function login(){
+ const email=document.getElementById("email").value.trim();
+ const password=document.getElementById("password").value;
+ const msg=document.getElementById("message");
+
+ if(!email || !password){
+   msg.textContent="Vui lòng nhập email và mật khẩu.";
+   return;
+ }
+
+ msg.textContent="Đang đăng nhập...";
+ const {data,error}=await db.auth.signInWithPassword({email,password});
+
+ if(error){
+   msg.textContent="Lỗi đăng nhập: "+error.message;
+   return;
+ }
+
+ document.getElementById("login").style.display="none";
+ document.getElementById("dashboard").style.display="block";
+ document.getElementById("user").textContent="Tài khoản: "+data.user.email;
+
+ const {data:profile,error:profileError}=await db
+   .from("profiles").select("username,role")
+   .eq("id",data.user.id).maybeSingle();
+
+ if(profileError){
+   document.getElementById("role").textContent=
+     "Chưa đọc được quyền tài khoản. Cần thiết lập quyền truy cập.";
+ }else if(profile){
+   document.getElementById("role").textContent=
+     "Tên: "+profile.username+" | Quyền: "+profile.role;
+ }else{
+   document.getElementById("role").textContent=
+     "Tài khoản chưa có hồ sơ phân quyền.";
+ }
+ msg.textContent="";
+}
+
+async function logout(){
+ await db.auth.signOut();
+ location.reload();
+}
+</script>
+</body>
+</html>
+

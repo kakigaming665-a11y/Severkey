@@ -232,7 +232,7 @@ async function createShopKey() {
 
     // Gọi hàm SQL đã tạo trong Supabase.
     // Hàm cần nhận p_duration_hours và p_max_devices.
-    const { data, error } = await supabase.rpc(
+    const { data, error } = await db.rpc(
       "create_shop_key",
       {
         p_duration_hours: hours,

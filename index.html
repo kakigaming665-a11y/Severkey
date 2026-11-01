@@ -122,6 +122,17 @@ async function logout(){
    location.reload();
  }
  }
+ window.addEventListener("load", async () => {
+  if (!window.location.hash.includes("type=recovery")) return;
+
+  const { data } = await db.auth.getSession();
+
+  if (data.session) {
+    updatePassword();
+  } else {
+    alert("Link khôi phục không hợp lệ hoặc đã hết hạn.");
+  }
+});
 </script>
 </body>
 </html>

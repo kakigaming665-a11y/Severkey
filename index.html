@@ -6,6 +6,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SHOP QUỐC BẢO</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+ .key-manager {
+  color: white;
+  padding: 15px;
+  font-family: Arial, sans-serif;
+}
+
+.key-manager h2 {
+  color: #ff3434;
+  text-align: center;
+}
+
+.key-card {
+  background: #171717;
+  border: 1px solid #a52626;
+  border-radius: 12px;
+  padding: 15px;
+  margin: 15px 0;
+}
+
+.key-card h3 {
+  color: #ff4545;
+}
+
+.key-card input,
+.key-card select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0 14px;
+  background: #292929;
+  color: white;
+  border: 1px solid #555;
+  border-radius: 8px;
+}
+
+.key-card button {
+  background: #c90000;
+  color: white;
+  border: 0;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 5px 0;
+  font-weight: bold;
+}
+
+.key-item {
+  background: #252525;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
 <style>
 *{box-sizing:border-box}
 body{
@@ -134,6 +186,235 @@ async function logout(){
   }
 });
 </script>
+ <script>
+const KEY_TABLE = "keys";
+const HISTORY_TABLE = "key_history";
+
+// Quy đổi thời hạn thành giờ
+function getDurationHours(unit, amount) {
+  const n = Number(amount);
+
+  if (unit === "permanent") return 0;
+  if (!Number.isInteger(n) || n < 1 || n > 10000) {
+    throw new Error("Thời hạn không hợp lệ.");
+  }
+
+  const multipliers = {
+    hour: 1,
+    day: 24,
+    week: 168,
+    month: 720
+  };
+
+  if (!multipliers[unit]) {
+    throw new Error("Đơn vị thời hạn không hợp lệ.");
+  }
+
+  return n * multipliers[unit];
+}
+
+// Tạo key
+async function createShopKey() {
+  const message = document.getElementById("keyMessage");
+
+  try {
+    const unit = document.getElementById("keyUnit").value;
+    const amount = document.getElementById("keyAmount").value;
+    const devices = Number(document.getElementById("keyDevices").value);
+
+    if (!Number.isInteger(devices) || devices < 1 || devices > 100) {
+      throw new Error("Giới hạn thiết bị phải từ 1 đến 100.");
+    }
+
+    const hours = getDurationHours(unit, amount);
+
+    message.textContent = "Đang tạo key...";
+
+    // Gọi hàm SQL đã tạo trong Supabase.
+    // Hàm cần nhận p_duration_hours và p_max_devices.
+    const { data, error } = await supabase.rpc(
+      "create_shop_key",
+      {
+        p_duration_hours: hours,
+        p_max_devices: devices
+      }
+    );
+
+    if (error) throw error;
+
+    const generatedKey =
+      typeof data === "string" ? data : data?.key;
+
+    if (!generatedKey) {
+      throw new Error("Không nhận được key từ máy chủ.");
+    }
+
+    message.textContent = "Tạo thành công: " + generatedKey;
+
+    await loadShopKeys();
+    await loadKeyHistory();
+
+  } catch (error) {
+    message.textContent = "Lỗi: " + error.message;
+  }
+}
+
+// Tải danh sách key
+async function loadShopKeys() {
+  const box = document.getElementById("keyList");
+  box.textContent = "Đang tải...";
+
+  const { data, error } = await supabase
+    .from(KEY_TABLE)
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    box.textContent = "Lỗi tải key: " + error.message;
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    box.textContent = "Chưa có key nào.";
+    return;
+  }
+
+  box.innerHTML = "";
+
+  data.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "key-item";
+
+    const keyText = document.createElement("strong");
+    keyText.textContent = item.key_code || item.key || "Không rõ key";
+
+    const detail = document.createElement("p");
+    detail.textContent =
+      "Thiết bị tối đa: " + (item.max_devices ?? "—") +
+      " | Hết hạn: " +
+      (item.expires_at
+        ? new Date(item.expires_at).toLocaleString("vi-VN")
+        : "Vĩnh viễn");
+
+    const copyButton = document.createElement("button");
+    copyButton.textContent = "SAO CHÉP";
+    copyButton.onclick = () => {
+      const value = item.key_code || item.key;
+      if (value) navigator.clipboard.writeText(value)
+        .then(() => alert("Đã sao chép key."));
+    };
+
+    const deleteButton = document.createElement("button");
+    deleteButton.textContent = "XÓA KEY";
+    deleteButton.onclick = () => deleteShopKey(item.id);
+
+    div.append(keyText, detail, copyButton, deleteButton);
+    box.appendChild(div);
+  });
+}
+
+// Xóa key
+async function deleteShopKey(id) {
+  if (!confirm("Bạn có chắc muốn xóa key này?")) return;
+
+  const { error } = await supabase
+    .from(KEY_TABLE)
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    alert("Không xóa được: " + error.message);
+    return;
+  }
+
+  alert("Đã xóa key.");
+  await loadShopKeys();
+}
+
+// Xem lịch sử
+async function loadKeyHistory() {
+  const box = document.getElementById("keyHistory");
+  box.textContent = "Đang tải lịch sử...";
+
+  const { data, error } = await supabase
+    .from(HISTORY_TABLE)
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    box.textContent = "Lỗi: " + error.message;
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    box.textContent = "Chưa có lịch sử.";
+    return;
+  }
+
+  box.innerHTML = "";
+
+  data.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "key-item";
+
+    const keyText = document.createElement("strong");
+    keyText.textContent = item.key_code || item.key || "Key";
+
+    const time = document.createElement("p");
+    time.textContent = item.created_at
+      ? new Date(item.created_at).toLocaleString("vi-VN")
+      : "";
+
+    const copyButton = document.createElement("button");
+    copyButton.textContent = "SAO CHÉP";
+    copyButton.onclick = () => {
+      const value = item.key_code || item.key;
+      if (value) navigator.clipboard.writeText(value)
+        .then(() => alert("Đã sao chép key."));
+    };
+
+    div.append(keyText, time, copyButton);
+    box.appendChild(div);
+  });
+}
+ </script>
+ <section id="keyManager" class="key-manager">
+  <h2>🔑 QUẢN LÝ KEY - SHOP QUỐC BẢO</h2>
+
+  <div class="key-card">
+    <h3>TẠO KEY MỚI</h3>
+
+    <label>Thời hạn</label>
+    <select id="keyUnit">
+      <option value="hour">Giờ</option>
+      <option value="day">Ngày</option>
+      <option value="week">Tuần</option>
+      <option value="month">Tháng</option>
+      <option value="permanent">Vĩnh viễn</option>
+    </select>
+
+    <input id="keyAmount" type="number" min="1" value="1"
+      placeholder="Nhập số lượng">
+
+    <label>Giới hạn thiết bị</label>
+    <input id="keyDevices" type="number" min="1" value="1">
+
+    <button onclick="createShopKey()">TẠO KEY</button>
+    <p id="keyMessage"></p>
+  </div>
+
+  <div class="key-card">
+    <h3>DANH SÁCH KEY</h3>
+    <button onclick="loadShopKeys()">LÀM MỚI</button>
+    <div id="keyList">Đang tải...</div>
+  </div>
+
+  <div class="key-card">
+    <h3>LỊCH SỬ TẠO KEY</h3>
+    <button onclick="loadKeyHistory()">XEM LỊCH SỬ</button>
+    <div id="keyHistory">Chưa tải lịch sử.</div>
+  </div>
+ </section>
 </body>
 </html>
 

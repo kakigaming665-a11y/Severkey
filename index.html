@@ -317,7 +317,7 @@ async function loadShopKeys() {
 async function deleteShopKey(id) {
   if (!confirm("Bạn có chắc muốn xóa key này?")) return;
 
-  const { error } = await supabase
+  const { error } = await db
     .from(KEY_TABLE)
     .delete()
     .eq("id", id);
@@ -336,7 +336,7 @@ async function loadKeyHistory() {
   const box = document.getElementById("keyHistory");
   box.textContent = "Đang tải lịch sử...";
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from(HISTORY_TABLE)
     .select("*")
     .order("created_at", { ascending: false });
